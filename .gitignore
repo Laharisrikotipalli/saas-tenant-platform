@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Coverage reports
+coverage/
+
+# Database volume
+db-data/
+
+# Docker
+*.pid
+*.seed
+*.pid.lock
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Temporary files
+tmp/
+temp/
+
+# Jest cache
+.jest/
+
+# Build files
+dist/
+build/
+
+# Docker overrides
+docker-compose.override.yml
