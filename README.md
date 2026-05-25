@@ -162,29 +162,73 @@ The `correlationId` is taken from the `x-correlation-id` request header if prese
 ## Verification Commands
 
 ### Health check
-```
+```bash
 curl http://localhost:4000/api/health
 ```
+
 ### Create tenant
-```
+```bash
 curl -X POST http://localhost:4000/api/tenants \
   -H "Content-Type: application/json" \
-  -d '{"name": "Acme Corp"}'
+  -d "{\"name\": \"Acme Corp\"}"
 ```
-### Get JWT
-```
+
+### Get JWT via OAuth callback
+```bash
 curl "http://localhost:4000/api/auth/google/callback?code=mock_valid_code&state=xyz"
 ```
-### Use JWT (replace TOKEN)
+
+### Get JWT via login
+```bash
+curl -X POST http://localhost:4000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d "{\"email\": \"admin@tenanta.com\"}"
 ```
+
+### Use JWT (replace TOKEN with actual token)
+```bash
 curl http://localhost:4000/api/me \
   -H "Authorization: Bearer TOKEN"
 ```
-### Pool stats
+
+### Create a project (atomic transaction)
+```bash
+curl -X POST http://localhost:4000/api/projects/complex-create \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"projectName\": \"My Project\", \"shouldFail\": false}"
 ```
+
+### Test rollback (shouldFail: true)
+```bash
+curl -X POST http://localhost:4000/api/projects/complex-create \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"projectName\": \"My Project\", \"shouldFail\": true}"
+```
+
+### Pool stats
+```bash
 curl http://localhost:4000/api/health/db-pool
 ```
+
 ### Swagger docs
+```bash
+# Open in browser
+http://localhost:4000/api-docs
 ```
-open http://localhost:4000/api-docs
+
+### Run tests with coverage
+```bash
+docker compose exec app npm run test:coverage
+```
+
+### Test rate limiting (11th request should return 429)
+```bash
+for i in {1..11}; do
+  curl -s -o /dev/null -w "%{http_code}\n" \
+  -X POST http://localhost:4000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d "{\"email\": \"test@test.com\"}"
+done
 ```

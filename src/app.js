@@ -23,6 +23,7 @@ app.use('/api/tenants', tenantRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 
+// Required by spec at /api/me
 app.get('/api/me', authenticate, async (req, res) => {
   const pool = require('./db/pool');
   try {

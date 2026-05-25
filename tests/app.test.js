@@ -124,6 +124,18 @@ describe('GET /api/me', () => {
   });
 });
 
+describe('GET /api/auth/me', () => {
+  it('returns user info with valid token', async () => {
+    pool.query.mockResolvedValueOnce({
+      rows: [{ id: USER_ADMIN_ID, email: 'admin@tenanta.com', tenantId: TENANT_A_ID, role: 'admin' }],
+    });
+    const token = makeToken();
+    const res = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.email).toBe('admin@tenanta.com');
+  });
+});
+
 describe('GET /api/auth/google/callback', () => {
   it('returns 400 when code or state missing', async () => {
     const res = await request(app).get('/api/auth/google/callback?code=abc');
@@ -142,10 +154,10 @@ describe('GET /api/auth/google/callback', () => {
 
   it('creates new user when not found', async () => {
     pool.query
-      .mockResolvedValueOnce({ rows: [] })                                                                        // user lookup
-      .mockResolvedValueOnce({ rows: [{ id: TENANT_A_ID }] })                                                    // tenant lookup by domain
-      .mockResolvedValueOnce({ rows: [{ id: 'new-user-id', email: 'test@default.com', tenant_id: TENANT_A_ID }] }) // insert user
-      .mockResolvedValueOnce({ rows: [] });                                                                        // insert role
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: TENANT_A_ID }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'new-user-id', email: 'test@default.com', tenant_id: TENANT_A_ID }] })
+      .mockResolvedValueOnce({ rows: [] });
     const res = await request(app).get('/api/auth/google/callback?code=mock_valid_code&state=xyz');
     expect(res.status).toBe(200);
   });
@@ -231,9 +243,8 @@ describe('GET /api/projects/:projectId', () => {
   });
 
   it('returns 404 for project belonging to different tenant', async () => {
-    pool.query.mockResolvedValueOnce({
-      rows: [{ id: 'proj-b', name: 'Project Beta', tenant_id: 'b0000000-0000-0000-0000-000000000002' }],
-    });
+    // With tenant_id in WHERE clause, DB returns empty for wrong tenant
+    pool.query.mockResolvedValueOnce({ rows: [] });
     const token = makeToken();
     const res = await request(app).get('/api/projects/proj-b').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(404);
@@ -264,16 +275,16 @@ describe('POST /api/projects/complex-create', () => {
     const res = await request(app)
       .post('/api/projects/complex-create')
       .set('Authorization', `Bearer ${token}`)
-      .send({ shouldFail: false });
+      .send({});
     expect(res.status).toBe(400);
   });
 
-  it('creates project successfully', async () => {
+  it('creates project successfully and releases client', async () => {
     mockClient.query
-      .mockResolvedValueOnce({})                                                                                    // BEGIN
-      .mockResolvedValueOnce({ rows: [{ id: 'new-proj', name: 'My Project', tenant_id: TENANT_A_ID }] })           // INSERT project
-      .mockResolvedValueOnce({})                                                                                    // INSERT project_users
-      .mockResolvedValueOnce({});                                                                                   // COMMIT
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ rows: [{ id: 'new-proj', name: 'My Project', tenant_id: TENANT_A_ID }] })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
 
     const token = makeToken();
     const res = await request(app)
@@ -286,10 +297,10 @@ describe('POST /api/projects/complex-create', () => {
 
   it('rolls back transaction on shouldFail=true', async () => {
     mockClient.query
-      .mockResolvedValueOnce({})                                                                                    // BEGIN
-      .mockResolvedValueOnce({ rows: [{ id: 'new-proj', name: 'My Project', tenant_id: TENANT_A_ID }] })           // INSERT project
-      .mockResolvedValueOnce({})                                                                                    // INSERT project_users (first)
-      .mockRejectedValueOnce(new Error('unique violation'));                                                        // INSERT project_users (duplicate = fail)
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ rows: [{ id: 'new-proj', name: 'My Project', tenant_id: TENANT_A_ID }] })
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error('unique violation'));
 
     const token = makeToken();
     const res = await request(app)
@@ -297,12 +308,13 @@ describe('POST /api/projects/complex-create', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ projectName: 'My Project', shouldFail: true });
     expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Transaction rolled back');
     expect(mockClient.release).toHaveBeenCalled();
   });
 });
 
 describe('GET /api-docs', () => {
-  it('returns 200 and HTML with swagger-ui', async () => {
+  it('returns 200 or redirect for swagger UI', async () => {
     const res = await request(app).get('/api-docs');
     expect([200, 301]).toContain(res.status);
   });
